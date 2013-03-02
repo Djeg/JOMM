@@ -1,4 +1,3 @@
-JOMM
-====
+JOMM (Javascript Object and Module Manager)
+===========================================
 
-Javascript Object Module Manager

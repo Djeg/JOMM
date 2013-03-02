@@ -230,12 +230,9 @@ var JOMM = (function(o){
 			var instance = Object.create(identifier);
 		}
 
-		console.log(instance);
-
 		if(typeof instance['init'] == 'function') {
 			var args = Array.prototype.slice.call(arguments);
 			args.shift();
-			console.log(args);
 			instance.init.apply(instance, args);
 		}
 
@@ -253,7 +250,6 @@ var JOMM = (function(o){
 		if(typeof module == "string"){
 			module = self.getModule(module);
 			if(!module){
-				console.error("JOMM Oups! You can't register a non-existent module :-( !");
 				return self;
 			}
 		}
@@ -284,6 +280,27 @@ var JOMM = (function(o){
 		}
 
 		return false;
+	}
+
+	/**
+	 * Extend a given JOMM method with the function
+	 *
+	 * @param string   methodName
+	 * @param function extension
+	 */
+	self.extend = function(methodName, extension)
+	{
+		if(typeof self[methodName] == "function"){
+			var parent = self[methodName];
+		} else {
+			var parent = function(){};
+		}
+
+		self[methodName] = function()
+		{
+			var args = [self, parent].concat(Array.prototype.slice.call(arguments))
+			return extension.apply(null, Array.prototype.slice.call(args));
+		}
 	}
 
 	/**
