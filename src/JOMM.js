@@ -56,11 +56,92 @@ var JOMM = (function(o){
 	self.Class = {};
 
 	/**
+	 * @var JSON Option, The global options for JOMM.
+	 * @access public
+	 */
+	self.Option = {};
+
+	/**
 	 * @var Array _registers, contains a list of module ready to be
 	 * launched.
 	 * @access public
 	 */
 	self._registers = [];
+
+	/**
+	 * Add an option to the given offset
+	 *
+	 * @param string offset
+	 * @param mixed  options
+	 * @return JOMM
+	 */
+	self.addOption = function(offset, option)
+	{
+		namespace = offset.explodeJSON(option);
+
+		for(i in namespace){
+			self.Option[i] = namespace[i];
+		}
+
+		return self;
+	}
+
+	/**
+	 * Get the option at the given offset. The offset
+	 * can be recursive ("Foo.Bar").
+	 *
+	 * @param string offset
+	 * @param json [ checker ]
+	 * @return mixed or null if no option exists
+	 */
+	self.getOption = function(offset, checker)
+	{
+		if(offset.length == 0){
+			return (checker == undefined) ? null : checker;
+		}
+
+		if(checker == undefined){
+			if(!self.hasOption(offset)){
+				return null;
+			} else {
+				checker = self.Option;
+			}
+		}
+
+		var exploder = offset.split(".");
+		var idObject = offset.explodeJSON();
+		var i = exploder.shift();
+		return self.getOption(exploder.join("."), checker[i]);
+	}
+
+	/**
+	 * Test if an option exists
+	 *
+	 * @param string offset
+	 * @param json [ checker ]
+	 * @return boolean
+	 */
+	self.hasOption = function(offset, checker)
+	{
+		if(offset.length == 0){
+			return (checker == undefined) ? false : true;
+		}
+
+		if(checker == undefined){
+			checker = self.Option;
+		}
+
+		var exploder = offset.split(".");
+		var idObject = offset.explodeJSON();
+
+		for(i in idObject){
+			if(checker[i] == undefined){
+				return false;
+			}
+		}
+		exploder.shift();
+		return self.hasOption(exploder.join("."), checker[i]);
+	}
 
 	/**
 	 * Test if a module exists
