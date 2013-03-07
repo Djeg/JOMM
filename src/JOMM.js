@@ -222,7 +222,13 @@ var JOMM = (function(o){
 
 		var exploder = identifier.split(".");
 		var idObject = identifier.explodeJSON();
-		var i = exploder.shift();
+
+		for(i in idObject){
+			if(checker[i] == undefined){
+				return false;
+			}
+		}
+		exploder.shift();
 		return self.getModule(exploder.join("."), checker[i]);
 	}
 
@@ -250,7 +256,13 @@ var JOMM = (function(o){
 
 		var exploder = identifier.split(".");
 		var idObject = identifier.explodeJSON();
-		var i = exploder.shift();
+
+		for(i in idObject){
+			if(checker[i] == undefined){
+				return false;
+			}
+		}
+		exploder.shift();
 		return self.getClass(exploder.join("."), checker[i]);
 	}
 
@@ -268,7 +280,13 @@ var JOMM = (function(o){
 
 		// concatenate too JOMM.Module
 		for(k in namespace) {
-			self.Module[k] = namespace[k];
+			if(self.Module[k] == undefined) {
+				self.Module[k] = namespace[k];
+			} else {
+				for(i in namespace[k]){
+					self.Module[k][i] = namespace[k][i];
+				}
+			}
 		}
 
 		return self;
@@ -287,7 +305,13 @@ var JOMM = (function(o){
 
 		// concatenate to the class
 		for(k in namespace) {
-			self.Class[k] = namespace[k];
+			if(self.Class[k] == undefined) {
+				self.Class[k] = namespace[k];
+			} else {
+				for(i in namespace[k]){
+					self.Class[k][i] = namespace[k][i];
+				}
+			}
 		}
 
 		return self;
@@ -309,6 +333,20 @@ var JOMM = (function(o){
 			var instance = new identifier();
 		} else if (typeof identifier == 'object') {
 			var instance = Object.create(identifier);
+		}
+
+		if(instance["parent"] != undefined){
+			if(typeof instance["parent"] == "string"){
+				var parent = self.getClass(instance['parent']);
+				self.inherit(instance, parent);
+			} else if(typeof instance["parent"] == "object"){
+				var parent = instance["parent"];
+				self.inherit(instance, parent);
+			} else {
+				console.error("JOMM Oups! Bas value for class.parent ("+ 
+					typeof instance["parent"]+
+					", string or object expected).");
+			}
 		}
 
 		if(typeof instance['init'] == 'function') {
@@ -335,7 +373,7 @@ var JOMM = (function(o){
 			}
 		}
 
-		self_registers.push(module);
+		self._registers.push(module);
 		return self;
 	}
 
@@ -379,9 +417,48 @@ var JOMM = (function(o){
 
 		self[methodName] = function()
 		{
-			var args = [self, parent].concat(Array.prototype.slice.call(arguments))
-			return extension.apply(null, Array.prototype.slice.call(args));
+			var opt = (self.Option[methodName] == undefined) ?
+				{} :
+				self.Option[methodName];
+			var args = [self, parent, opt].concat(Array.prototype.slice.call(arguments))
+			return extension.apply(self, Array.prototype.slice.call(args));
 		}
+	}
+
+	/**
+	 * Inherit two object between us
+	 *
+	 * @param json oSon
+	 * @param json oMother
+	 * @param string Type, the Module or Class type
+	 * @return JOMM
+	 */
+	self.inherit = function(oSon, oMother, type)
+	{
+		for(x in oMother){
+			if(oSon[x] == undefined){
+				oSon[x] = oMother[x];
+			} else {
+				if(typeof oSon[x] == "function"){
+					oSon['__'+x] = oSon[x];
+					oSon[x] = new (function(j)
+					{
+						var parent = function()
+						{
+							var args = [oMother[j]].concat(Array.prototype.slice.call(arguments));
+							return oMother[j].apply(oSon, args);
+						};
+
+						return function(){
+							var a = [parent].concat(Array.prototype.slice.call(arguments));
+							return oSon['__'+j].apply(oSon, a);
+						};
+					})(x);
+				}
+			}
+		}
+
+		return self;
 	}
 
 	/**
@@ -392,6 +469,24 @@ var JOMM = (function(o){
 	self.init = function()
 	{
 		for(i in self._registers){
+			// Inherits modules :
+			if(self._registers[i]["parent"] != undefined){
+				if(typeof self._registers[i]["parent"] == "string"){
+					var str = self._registers[i]["parent"];
+					var reg = self._registers[i];
+					var parent = self.getModule(str);
+					self.inherit(reg, parent);
+					self._registers[i] = reg;
+				} else if(typeof self._registers[i]["parent"] == "object"){
+					var parent = self._registers[i]["parent"];
+					self.inherit(self._registers[i], parent);
+				} else {
+					console.error("JOMM Oups! Bas value for module.parent ("+ 
+						typeof self._registers[i]["parent"]+
+						", string or object expected).");
+				}
+			}
+			// Initialize modules :
 			if(typeof self._registers[i]["init"] == "function"){
 				self._registers[i].init();
 			}
