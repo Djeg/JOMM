@@ -30,6 +30,46 @@ String.prototype.explodeJSON = function(toAppend)
 	return object;
 }
 
+/**
+ * Add the jsonHasKey method to the window. This method is
+ * recursive.
+ *
+ * @param object json
+ * @param string key
+ */
+window.jsonGetKey = (function()
+{
+	var keyGet = function(json, exploder)
+	{
+		if(exploder.length == 0 || json == undefined){
+			return json;
+		}
+
+		var first = exploder.shift();
+		return keyGet(json[first], exploder);
+	}
+
+	return function(json, key)
+	{
+		return keyGet(json, key.split("."));
+	}
+})();
+
+/**
+ * Copy an object and return this copy.
+ *
+ * @param object json
+ * @return object
+ */
+window.jsonCopy = function(json)
+{
+	var r = {};
+	for (k in json){
+		r[k] = json[k];
+	}
+	return r;
+}
+
 
 /**
  * JOMM (Javascript Object and Module Manager) is a simple and complete
@@ -43,457 +83,346 @@ var JOMM = (function(o){
 	var self = o;
 
 	/**
-	 * @var JSON modules, the modules
-	 * global namespace
+	 * @param object container
 	 * @access public
 	 */
-	self.Module = {};
+	self.container = {};
 
 	/**
-	 * @var JSON Class, The class namespace. This namespace store
-	 * all the defined project class.
-	 */
-	self.Class = {};
-
-	/**
-	 * @var JSON Option, The global options for JOMM.
-	 * @access public
-	 */
-	self.Option = {};
-
-	/**
-	 * @var Array _registers, contains a list of module ready to be
-	 * launched.
-	 * @access public
-	 */
-	self._registers = [];
-
-	/**
-	 * Add an option to the given offset
+	 * Add a prototype to the given container
 	 *
-	 * @param string offset
-	 * @param mixed  options
-	 * @return JOMM
-	 */
-	self.addOption = function(offset, option)
-	{
-		namespace = offset.explodeJSON(option);
-
-		for(i in namespace){
-			self.Option[i] = namespace[i];
-		}
-
-		return self;
-	}
-
-	/**
-	 * Get the option at the given offset. The offset
-	 * can be recursive ("Foo.Bar").
-	 *
-	 * @param string offset
-	 * @param json [ checker ]
-	 * @return mixed or null if no option exists
-	 */
-	self.getOption = function(offset, checker)
-	{
-		if(offset.length == 0){
-			return (checker == undefined) ? null : checker;
-		}
-
-		if(checker == undefined){
-			if(!self.hasOption(offset)){
-				return null;
-			} else {
-				checker = self.Option;
-			}
-		}
-
-		var exploder = offset.split(".");
-		var idObject = offset.explodeJSON();
-		var i = exploder.shift();
-		return self.getOption(exploder.join("."), checker[i]);
-	}
-
-	/**
-	 * Test if an option exists
-	 *
-	 * @param string offset
-	 * @param json [ checker ]
-	 * @return boolean
-	 */
-	self.hasOption = function(offset, checker)
-	{
-		if(offset.length == 0){
-			return (checker == undefined) ? false : true;
-		}
-
-		if(checker == undefined){
-			checker = self.Option;
-		}
-
-		var exploder = offset.split(".");
-		var idObject = offset.explodeJSON();
-
-		for(i in idObject){
-			if(checker[i] == undefined){
-				return false;
-			}
-		}
-		exploder.shift();
-		return self.hasOption(exploder.join("."), checker[i]);
-	}
-
-	/**
-	 * Test if a module exists
-	 *
-	 * @param string identifier
-	 * @param json [ checker ]
-	 * @return boolean
-	 */
-	self.hasModule = function(identifier, checker)
-	{
-		if(identifier.length == 0){
-			return (checker == undefined) ? false : true;
-		}
-
-		if(checker == undefined){
-			checker = self.Module;
-		}
-
-		var exploder = identifier.split(".");
-		var idObject = identifier.explodeJSON();
-
-		for(i in idObject){
-			if(checker[i] == undefined){
-				return false;
-			}
-		}
-		exploder.shift();
-		return self.hasModule(exploder.join("."), checker[i]);
-	}
-
-	/**
-	 * Test if a Class exists
-	 *
-	 * @return boolean
-	 */
-	self.hasClass = function(identifier, checker)
-	{
-		if(identifier.length == 0){
-			return (checker == undefined) ? false : true;
-		}
-
-		if(checker == undefined){
-			checker = self.Class;
-		}
-
-		var exploder = identifier.split(".");
-		var idObject = identifier.explodeJSON();
-
-		for(i in idObject){
-			if(checker[i] == undefined){
-				return false;
-			}
-		}
-		exploder.shift();
-		return self.hasClass(exploder.join("."), checker[i]);
-	}
-
-	/**
-	 * Return the module by this string identifier
-	 *
-	 * @param string identifier
-	 * @param json   [ checker ]
+	 * @param object json, the container
+	 * @param object nms, to append
 	 * @return json
 	 */
-	self.getModule = function(identifier, checker)
+	self.addPrototypeTo = function(json, nms)
 	{
-		if(identifier.length == 0){
-			return (checker == undefined) ? null : checker;
-		}
-
-		if(checker == undefined){
-			if(!self.hasModule(identifier)){
-				return null;
+		for(n in nms){
+			if(json[n] == undefined){
+				json[n] = nms[n];
 			} else {
-				checker = self.Module;
+				self.addPrototypeTo(json[n], nms[n]);
 			}
 		}
-
-		var exploder = identifier.split(".");
-		var idObject = identifier.explodeJSON();
-
-		for(i in idObject){
-			if(checker[i] == undefined){
-				return false;
-			}
-		}
-		exploder.shift();
-		return self.getModule(exploder.join("."), checker[i]);
 	}
 
 	/**
-	 * Return the class by this strong identifier
+	 * Return a class prototype
 	 *
-	 * @param string identifier
-	 * @param json [ checker ]
-	 * @return Class
+	 * @return object
 	 */
-	self.getClass = function(identifier, checker)
+	self.get = function(className)
 	{
-		if(identifier.length == 0){
-			return (checker == undefined) ? null : checker;
-		}
-
-		if(checker == undefined){
-			if(!self.hasClass(identifier)){
-				return null;
-			} else {
-				checker = self.Class;
-			}
-		}
-
-
-		var exploder = identifier.split(".");
-		var idObject = identifier.explodeJSON();
-
-		for(i in idObject){
-			if(checker[i] == undefined){
-				return false;
-			}
-		}
-		exploder.shift();
-		return self.getClass(exploder.join("."), checker[i]);
+		return window.jsonGetKey(self.container, className);
 	}
 
 	/**
-	 * Create a module and store it into the JOMM.Module
+	 * Instanciate a given class by parse all this method and 
+	 * create a closure for the object Python way (self has first
+	 * parameter).
 	 *
-	 * @param string identifier
-	 * @param json   module
-	 *
-	 * @return JOMM
+	 * @param object prototype
+	 * @return object, the instanciate one
 	 */
-	self.createModule = function(identifier, module)
+	self.instanciate = function(prototype)
 	{
-		var namespace = identifier.explodeJSON(module);
+		var instance = Object.create(prototype);
+		// Parse the methods :
+		for(i in instance){
+			if(typeof instance[i] == "function") {
+				instance[i] = new (function(obj, className, methodName)
+				{
+					this.obj = obj;
+					this.name = className;
+					this.method = methodName;
 
-		// concatenate too JOMM.Module
-		for(k in namespace) {
-			if(self.Module[k] == undefined) {
-				self.Module[k] = namespace[k];
-			} else {
-				for(i in namespace[k]){
-					self.Module[k][i] = namespace[k][i];
-				}
+					var __ = this;
+
+					var closure = function()
+					{
+						var origin = JOMM.get(__.name+"."+__.method);
+						var args = [__.obj].concat(Array.prototype.slice.call(arguments));
+						return origin.apply(__.obj, args);
+					}
+
+					return closure;
+				})(instance, instance.__name__, i);
 			}
-		}
-
-		return self;
-	}
-
-	/**
-	 * Create a class.
-	 *
-	 * @param string identifier
-	 * @param json   class
-	 * @return JOMM
-	 */
-	self.createClass = function(identifier, module)
-	{
-		var namespace = identifier.explodeJSON(module);
-
-		// concatenate to the class
-		for(k in namespace) {
-			if(self.Class[k] == undefined) {
-				self.Class[k] = namespace[k];
-			} else {
-				for(i in namespace[k]){
-					self.Class[k][i] = namespace[k][i];
-				}
-			}
-		}
-
-		return self;
-	}
-
-	/**
-	 * Instanciate a class with the given argument
-	 *
-	 * @param string identifier
-	 * @param [ * ], the object arguments
-	 */
-	self.new = function(identifier)
-	{
-		if(typeof identifier == "string") {
-			identifier = self.getClass(identifier);	
-		}
-
-		if(typeof identifier == "function"){
-			var instance = new identifier();
-		} else if (typeof identifier == 'object') {
-			var instance = Object.create(identifier);
-		}
-
-		if(instance["parent"] != undefined){
-			if(typeof instance["parent"] == "string"){
-				var parent = self.getClass(instance['parent']);
-				self.inherit(instance, parent);
-			} else if(typeof instance["parent"] == "object"){
-				var parent = instance["parent"];
-				self.inherit(instance, parent);
-			} else {
-				console.error("JOMM Oups! Bas value for class.parent ("+ 
-					typeof instance["parent"]+
-					", string or object expected).");
-			}
-		}
-
-		if(typeof instance['init'] == 'function') {
-			var args = Array.prototype.slice.call(arguments);
-			args.shift();
-			instance.init.apply(instance, args);
 		}
 
 		return instance;
 	}
 
 	/**
-	 * This method add a module on the register
+	 * Inherit a given object with the special attributes 
+	 * "extends".
 	 *
-	 * @param string|json module
+	 * @param object object
+	 * @return object, the inherit object
+	 */
+	self.inherit = function(object)
+	{
+		if(typeof object.extends != "string"){
+			return object;
+		}
+		// get the parent class :
+		var parentClass = self.inherit(self.instanciate(self.get(object.extends)));
+
+		// do the extends
+		for(i in parentClass){
+			if(object[i] == undefined){
+				object[i] = parentClass[i];
+			} else {
+				if(typeof object[i] == "function"){
+					object[i] = new (function(obj, className, methodName, parent){
+
+						this.obj = obj;
+						this.name = className;
+						this.method = methodName;
+						this.parent = parent;
+
+						var __ = this;
+
+						var parentMethod = function()
+						{
+							return parent.apply(__.obj, Array.prototype.slice.call(arguments));
+						}
+
+						var closure = function()
+						{
+							var origin = JOMM.get(__.name+"."+__.method);
+							var args = [__.obj, parentMethod].concat(Array.prototype.slice.call(arguments));
+							return origin.apply(__.obj, args);
+						}
+
+						return closure;
+
+
+					})(object, object.__name__, i, parentClass[i]);
+				}
+			}
+		}
+
+		return object;
+	}
+
+	/**
+	 * Checking if a given object implements corectly an interface
+	 *
+	 * @param object obj
+	 * @return boolean
+	 */
+	self.implements = function(obj)
+	{
+		// get the interface :
+		var interfaces = obj.implements || [];
+		if(typeof interfaces != "object" || interfaces.length == 0){
+			return true;
+		}
+		// Loop on each interfaces :
+		for(i in interfaces){
+			var interPrototype = self.get(interfaces[i]);
+			// loop on each members :
+			for (m in interPrototype){
+				if(m.search(/^__(.*)__$/) == 0){
+					continue;
+				}
+				if(obj[m] == undefined){
+					console.error("JOMM Oups! Object "+obj.__name__+" must implements the member "+m+"("+
+						interPrototype[m]+") !");
+					return false;
+				} else if(typeof obj[m] != interPrototype[m]) {
+					console.error("JOMM Oups! Object "+obj.__name__+" implements the member "+m+" but with "+
+						"the wrong type ("+typeof obj[m]+" instead of "+interPrototype[m]+")");
+					return false;
+				}
+			}
+
+		}
+
+		// All is OK !
+		return true;
+	}
+
+	/**
+	 * create an interface
+	 *
+	 * @param string name
+	 * @param object interface
 	 * @return JOMM
 	 */
-	self.register = function(module)
+	self.interface = function(name, interface)
 	{
-		if(typeof module == "string"){
-			module = self.getModule(module);
-			if(!module){
+		// Add the name to the prototype
+		interface.__name__ = name;
+		interface.__type__ = "interface";
+		var namespace = name.explodeJSON(interface);
+		// Check interface integration:
+		for(m in interface){
+			if(typeof interface[m] != "string"){
+				console.error("JOMM Oups! Bad value fo interface "+name+" on the member "+m+
+					". An interface member must return a string, please visits the official JOMM "+
+					"documentation for more informations.");
 				return self;
 			}
 		}
+		// Add to the container
+		self.addPrototypeTo(self.container, namespace);
 
-		self._registers.push(module);
 		return self;
 	}
 
 	/**
-	 * Test if the given module is always registered
+	 * Create a module.
 	 *
-	 * @param string|json module
-	 * @return boolean
-	 */
-	self.isRegister = function(module)
-	{
-		if(typeof module == "string"){
-			module = self.getModule(module);
-			if(!module){
-				return false;
-			}
-		}
-
-		for(i in self._registers){
-			if(self._registers === module){
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Extend a given JOMM method with the function
-	 *
-	 * @param string   methodName
-	 * @param function extension
-	 */
-	self.extend = function(methodName, extension)
-	{
-		if(typeof self[methodName] == "function"){
-			var parent = self[methodName];
-		} else {
-			var parent = function(){};
-		}
-
-		self[methodName] = function()
-		{
-			var opt = (self.Option[methodName] == undefined) ?
-				{} :
-				self.Option[methodName];
-			var args = [self, parent, opt].concat(Array.prototype.slice.call(arguments))
-			return extension.apply(self, Array.prototype.slice.call(args));
-		}
-	}
-
-	/**
-	 * Inherit two object between us
-	 *
-	 * @param json oSon
-	 * @param json oMother
-	 * @param string Type, the Module or Class type
+	 * @param string identifier
+	 * @param function module
+	 * @param * arguments ...
 	 * @return JOMM
 	 */
-	self.inherit = function(oSon, oMother, type)
+	self.module = function(identifier, module)
 	{
-		for(x in oMother){
-			if(oSon[x] == undefined){
-				oSon[x] = oMother[x];
+		// checking module type
+		if(typeof module != "function"){
+			console.error("JOMM Oups! A module must be a function type ("+typeof module+
+				" given)");
+			return self;
+		}
+
+		var proto = {
+			__name__: identifier,
+			__type__: "module",
+			__function__: module,
+			__arguments__: Array.prototype.slice.call(arguments, 2),
+			__module__: null
+		};
+
+		// Dispatch into JSON the class name
+		var namespace = identifier.explodeJSON(proto);
+		// Add to the container
+		self.addPrototypeTo(self.container, namespace);
+
+		return self;
+	}
+
+	/**
+	 * Initialise the given action schemes.
+	 *
+	 * @param object schemes
+	 * @return JOMM
+	 */
+	self.run = function(schemes)
+	{
+		if(typeof schemes != "object"){
+			return self;
+		}
+
+		// loop on each modules
+		for(mod in schemes){
+			// get the object :
+			var p = self.get(mod);
+			if(!p){
+				console.error("JOMM Oups! No module has been found for "+mod);
+				continue;
+			}
+			if(p.__type__ != "module"){
+				console.error("JOMM Oups! The "+p.__name__+" is a "+p.__type__+", module is except !");
+				continue;
+			}
+			// Try to create the module if it's not create
+			if(!p.__module__){
+				p.__module__ = p.__function__.apply(null, p.__arguments__);
+			}
+			var mod_instance = p.__module__;
+			// Launched the different methods:
+			for(method in schemes[mod]){
+
+				if(typeof mod_instance[method] != "function"){
+					console.error("JOMM Oups! The method "+method+" does not seems to exists on "+mod+" module");
+					continue;
+				}
+
+				mod_instance[method].apply(mod_instance, schemes[mod][method]);
+
+			}
+		}
+
+		return self;
+	}
+
+	/**
+	 * Create a class
+	 *
+	 * @param string className
+	 * @param object prototype
+	 * @return JOMM
+	 */
+	self.class = function(className, prototype)
+	{
+		// Add the name to the prototype :
+		prototype.__name__ = className;
+		prototype.__type__ = "class";
+		// Dispatch into JSON the class name
+		var namespace = className.explodeJSON(prototype);
+		// Add to the container
+		self.addPrototypeTo(self.container, namespace);
+
+		return self;
+	}
+
+	/**
+	 * Instanciate a class with the given parameter
+	 *
+	 * @param string className
+	 * @param *, the arguments
+	 * @return object
+	 */
+	self.new = function(className)
+	{
+		// get the class
+		var prototype = self.get(className);
+
+		// check interface and abstract class
+		if(prototype.__type__ != "class"){
+			console.error("JOMM Oups! You can't instanciate "+prototype.__type__+" class type.");
+			return {};
+		}
+
+		// create object
+		var object = self.inherit(self.instanciate(prototype));
+
+		// check implementation
+		if(!self.implements(object)){
+			return {};
+		}
+
+		// construct object
+		if(object.init != undefined && typeof object.init == "function"){
+			object.init.apply(object, Array.prototype.slice.call(arguments, 1));
+		}
+
+		return object;
+	}
+
+	/**
+	 * This method display on the console the container debuging
+	 *
+	 * @param object container
+	 * @return JOMM
+	 */
+	self.debugContainer = function(container, level)
+	{
+		var ct = container || self.container;
+		var t = level || "";
+		for(e in ct){
+			if(ct[e].__type__ == undefined){
+				console.log(t + e);
+				self.debugContainer(ct[e], t + "-");
 			} else {
-				if(typeof oSon[x] == "function"){
-					oSon['__'+x] = oSon[x];
-					oSon[x] = new (function(j)
-					{
-						var parent = function()
-						{
-							var args = [oMother[j]].concat(Array.prototype.slice.call(arguments));
-							return oMother[j].apply(oSon, args);
-						};
-
-						return function(){
-							var a = [parent].concat(Array.prototype.slice.call(arguments));
-							return oSon['__'+j].apply(oSon, a);
-						};
-					})(x);
-				}
+				console.log(t + "["+ct[e].__type__.substr(0,1).toUpperCase()+"]"+e);
 			}
 		}
-
-		return self;
 	}
-
-	/**
-	 * Initialise the registered modules
-	 *
-	 * @return JOMM
-	 */
-	self.init = function()
-	{
-		for(i in self._registers){
-			// Inherits modules :
-			if(self._registers[i]["parent"] != undefined){
-				if(typeof self._registers[i]["parent"] == "string"){
-					var str = self._registers[i]["parent"];
-					var reg = self._registers[i];
-					var parent = self.getModule(str);
-					self.inherit(reg, parent);
-					self._registers[i] = reg;
-				} else if(typeof self._registers[i]["parent"] == "object"){
-					var parent = self._registers[i]["parent"];
-					self.inherit(self._registers[i], parent);
-				} else {
-					console.error("JOMM Oups! Bas value for module.parent ("+ 
-						typeof self._registers[i]["parent"]+
-						", string or object expected).");
-				}
-			}
-			// Initialize modules :
-			if(typeof self._registers[i]["init"] == "function"){
-				self._registers[i].init();
-			}
-		}
-
-		return self;
-	}
-
+ 
 	return self;
 })({});
