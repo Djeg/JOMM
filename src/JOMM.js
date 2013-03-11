@@ -117,6 +117,24 @@ var JOMM = (function(o){
 	}
 
 	/**
+	 * Get a given module
+	 *
+	 * @param string mod
+	 * @return object
+	 */
+	self.getModule = function(mod)
+	{
+		if(!self.get(mod)){
+			console.error("JOMM Oups! No module named "+mod+" has been found");
+			return {};
+		}
+
+		self.launch(mod);
+
+		return self.get(mod).__module__;
+	}
+
+	/**
 	 * Instanciate a given class by parse all this method and 
 	 * create a closure for the object Python way (self has first
 	 * parameter).
@@ -319,36 +337,61 @@ var JOMM = (function(o){
 
 		// loop on each modules
 		for(mod in schemes){
-			// get the object :
-			var p = self.get(mod);
-			if(!p){
-				console.error("JOMM Oups! No module has been found for "+mod);
-				continue;
-			}
-			if(p.__type__ != "module"){
-				console.error("JOMM Oups! The "+p.__name__+" is a "+p.__type__+", module is except !");
-				continue;
-			}
-			// Try to create the module if it's not create
-			if(!p.__module__){
-				p.__module__ = p.__function__.apply(null, p.__arguments__);
-			}
-			var mod_instance = p.__module__;
-			// Launched the different methods:
+			// try to launch it
+			self.launch(mod);
+			// loop on method :
 			for(method in schemes[mod]){
-
-				if(typeof mod_instance[method] != "function"){
-					console.error("JOMM Oups! The method "+method+" does not seems to exists on "+mod+" module");
-					continue;
-				}
-
-				mod_instance[method].apply(mod_instance, schemes[mod][method]);
-
+				self.launch(mod, method, schemes[mod][method]);
 			}
 		}
 
 		return self;
 	}
+
+	/**
+	 * run a given module method or just instanciate them if no method
+	 * is given.
+	 *
+	 * @param string module
+	 * @param [ string method ], the method
+	 * @param object argus, method arguments
+	 * @return JOMM
+	 */
+	self.launch = function(module, method, argus)
+	{
+		var args = argus || [];
+		// get the prototype :
+		var m = self.get(module);
+		if(!m){
+			console.error("JOMM Oups! No module named "+module+" has been found !");
+			return self;
+		}
+		// Check if it's a correct module :
+		if(m.__type__ == undefined || m.__type__ != "module"){
+			console.error("JOMM Oups! "+module+" isn't a module ("+module.__type__+")");
+			return self;
+		}
+		// Instanciate them if it's not
+		if(!m.__module__){
+			m.__module__ = m.__function__.apply(null, m.__arguments__);
+			if(!self.implements(m.__module__)){
+				return self;
+			}
+		}
+		// Call the method if it's defined :
+		if(method != undefined && typeof method == "string"){
+			if(m.__module__[method] == undefined){
+				console.warn("JOMM Caution! Module "+module+" has no member name "+method);
+			} else if(typeof m.__module__[method]!= "function"){
+				console.warn("JOMM Caution! Module "+module+" has no method name "+method);
+			} else {
+				m.__module__[method].apply(m.__module__, args);
+			}
+		}
+
+		return self;
+	}
+
 
 	/**
 	 * Create a class
@@ -410,16 +453,16 @@ var JOMM = (function(o){
 	 * @param object container
 	 * @return JOMM
 	 */
-	self.debugContainer = function(container, level)
+	self.debug = function(container, level)
 	{
 		var ct = container || self.container;
 		var t = level || "";
 		for(e in ct){
 			if(ct[e].__type__ == undefined){
-				console.log(t + e);
-				self.debugContainer(ct[e], t + "-");
+				console.log(t + e + " - package :");
+				self.debug(ct[e], t + "\t");
 			} else {
-				console.log(t + "["+ct[e].__type__.substr(0,1).toUpperCase()+"]"+e);
+				console.log(t + "> " + e + " - "+ct[e].__type__);
 			}
 		}
 	}
