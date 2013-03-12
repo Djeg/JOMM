@@ -7,71 +7,6 @@
  */
 
 /**
- * Modified the string prototype to add some usefull
- * methods.
- *
- * @param mixed toAppend
- * @return JSON
- */
-String.prototype.explodeJSON = function(toAppend)
-{
-	if( this.length == 0 ){
-		if(toAppend != undefined){
-			return toAppend;
-		}
-		return {};
-	}
-
-	var memory = this.split(".");
-	var tmp = memory.shift();
-	var object = {};
-
-	object[tmp] = memory.join(".").explodeJSON(toAppend);
-	return object;
-}
-
-/**
- * Add the jsonHasKey method to the window. This method is
- * recursive.
- *
- * @param object json
- * @param string key
- */
-window.jsonGetKey = (function()
-{
-	var keyGet = function(json, exploder)
-	{
-		if(exploder.length == 0 || json == undefined){
-			return json;
-		}
-
-		var first = exploder.shift();
-		return keyGet(json[first], exploder);
-	}
-
-	return function(json, key)
-	{
-		return keyGet(json, key.split("."));
-	}
-})();
-
-/**
- * Copy an object and return this copy.
- *
- * @param object json
- * @return object
- */
-window.jsonCopy = function(json)
-{
-	var r = {};
-	for (k in json){
-		r[k] = json[k];
-	}
-	return r;
-}
-
-
-/**
  * JOMM (Javascript Object and Module Manager) is a simple and complete
  * javascript module that allow you to manage Modules, Class and many
  * other stuff with asynchronous script loader and many more stuffs.
@@ -113,25 +48,54 @@ var JOMM = (function(o){
 	 */
 	self.get = function(className)
 	{
-		return window.jsonGetKey(self.container, className);
+		return self.Utilities.jsonGetKey(self.container, className);
 	}
 
 	/**
 	 * Get a given module
 	 *
 	 * @param string mod
+	 * @param boolean warn = true
 	 * @return object
 	 */
-	self.getModule = function(mod)
+	self.getModule = function(mod, warn)
 	{
+		if(warn == undefined){
+			warn = true;
+		}
+
 		if(!self.get(mod)){
 			console.error("JOMM Oups! No module named "+mod+" has been found");
 			return {};
 		}
 
-		self.launch(mod);
-
-		return self.get(mod).__module__;
+		if(typeof self.get(mod).__module__ == "undefined"){
+			// try to get the module that is name like the package
+			// ex : Foo.Package -> try to get : Foo.Package.Package module
+			var pack = mod.split(".").pop();
+			if(typeof self.get(mod)[pack] !== "undefined"){
+				if(!self.get(mod)[pack].__module__ && warn){
+					console.warn("JOMM caution! You tried to get a Module that is not initiliaze.");
+				}
+				var module = self.get(mod)[pack];
+			} else {
+				console.error("JOMM Oups! No module named "+mod+" has been found");
+				return {};
+			}
+			
+		} else if(!self.get(mod).__module__){
+			if(warn){
+				console.warn("JOMM caution! You tried to get a Module that is not initiliaze.");
+			}
+			var module = self.get(mod);
+		} else {
+			var module = self.get(mod);
+		}
+		if(warn){
+			return module.__module__;
+		} else {
+			return module;
+		}
 	}
 
 	/**
@@ -274,7 +238,7 @@ var JOMM = (function(o){
 		// Add the name to the prototype
 		interface.__name__ = name;
 		interface.__type__ = "interface";
-		var namespace = name.explodeJSON(interface);
+		var namespace = self.Utilities.explodeJSON(name, interface);
 		// Check interface integration:
 		for(m in interface){
 			if(typeof interface[m] != "string"){
@@ -316,7 +280,7 @@ var JOMM = (function(o){
 		};
 
 		// Dispatch into JSON the class name
-		var namespace = identifier.explodeJSON(proto);
+		var namespace = self.Utilities.explodeJSON(identifier, proto);
 		// Add to the container
 		self.addPrototypeTo(self.container, namespace);
 
@@ -338,11 +302,7 @@ var JOMM = (function(o){
 		// loop on each modules
 		for(mod in schemes){
 			// try to launch it
-			self.launch(mod);
-			// loop on method :
-			for(method in schemes[mod]){
-				self.launch(mod, method, schemes[mod][method]);
-			}
+			self.init(mod, schemes[mod]);
 		}
 
 		return self;
@@ -353,15 +313,14 @@ var JOMM = (function(o){
 	 * is given.
 	 *
 	 * @param string module
-	 * @param [ string method ], the method
-	 * @param object argus, method arguments
+	 * @param [ object options ]
 	 * @return JOMM
 	 */
-	self.launch = function(module, method, argus)
+	self.init = function(module, options)
 	{
-		var args = argus || [];
+		var opts = options || {};
 		// get the prototype :
-		var m = self.get(module);
+		var m = self.getModule(module, false);
 		if(!m){
 			console.error("JOMM Oups! No module named "+module+" has been found !");
 			return self;
@@ -374,19 +333,10 @@ var JOMM = (function(o){
 		// Instanciate them if it's not
 		if(!m.__module__){
 			m.__module__ = m.__function__.apply(null, m.__arguments__);
-			if(!self.implements(m.__module__)){
-				return self;
-			}
 		}
-		// Call the method if it's defined :
-		if(method != undefined && typeof method == "string"){
-			if(m.__module__[method] == undefined){
-				console.warn("JOMM Caution! Module "+module+" has no member name "+method);
-			} else if(typeof m.__module__[method]!= "function"){
-				console.warn("JOMM Caution! Module "+module+" has no method name "+method);
-			} else {
-				m.__module__[method].apply(m.__module__, args);
-			}
+		// Call the init method :
+		if(m.__module__.init && typeof m.__module__.init == "function"){
+			m.__module__.init(opts);
 		}
 
 		return self;
@@ -403,10 +353,11 @@ var JOMM = (function(o){
 	self.class = function(className, prototype)
 	{
 		// Add the name to the prototype :
-		prototype.__name__ = className;
-		prototype.__type__ = "class";
+		// prototype.__name__ = className;
+		// prototype.__type__ = "class";
+		prototype = self.Utilities.createPrototype(prototype, className, "class");
 		// Dispatch into JSON the class name
-		var namespace = className.explodeJSON(prototype);
+		var namespace = self.Utilities.explodeJSON(className, prototype);
 		// Add to the container
 		self.addPrototypeTo(self.container, namespace);
 
@@ -469,3 +420,191 @@ var JOMM = (function(o){
  
 	return self;
 })({});
+
+/**
+ * This JOMM subModule defined some usefull functions for
+ * JSON and String enhancement.
+ *
+ * @author david jegat <david.jegat@gmail.com>
+ */
+JOMM.Utilities = (function()
+{
+
+	var self = {};
+
+	/**
+	 * Explode a given string to a json
+	 *
+	 * @param string toExplode
+	 * @param mixed toAppend
+	 * @return JSON
+	 */
+	self.explodeJSON = function(toExplode, toAppend)
+	{
+		if( toExplode.length == 0 ){
+			if(toAppend != undefined){
+				return toAppend;
+			}
+			return {};
+		}
+
+		var memory = toExplode.split(".");
+		var tmp = memory.shift();
+		var object = {};
+
+		object[tmp] = self.explodeJSON(memory.join("."), toAppend);
+		return object;
+	}
+
+	/**
+	 * Get a key from a json with a string as key
+	 * getter. This method is recursive.
+	 *
+	 * @param object json
+	 * @param string key
+	 * @return mixed
+	 */
+	self.jsonGetKey = (function()
+	{
+		var keyGet = function(json, exploder)
+		{
+			if(exploder.length == 0 || json == undefined){
+				return json;
+			}
+
+			var first = exploder.shift();
+			return keyGet(json[first], exploder);
+		}
+
+		return function(json, key)
+		{
+			return keyGet(json, key.split("."));
+		}
+	})();
+
+	/**
+	 * Test two string instance between us
+	 *
+	 * @param string a
+	 * @param string b
+	 */
+	self.instanceOf = function(a, b)
+	{
+		var objectA = JOMM.get(a);
+		var objectB = JOMM.get(b);
+		if( !objectA || objectA.__name__ != a ||
+			!objectB || objectB.__name__ != b) {
+			console.error("JOMM Oups! Bad value for JOMM.Utilities.instanceOf !");
+			return false;
+		}
+
+		if(objectA.__type__ == "class" && objectB.__type__ == "class"){
+
+			if(objectA.__name__ == objectB.__name__){
+				return true;
+			}
+			var recParentTest = function(c, p){
+				if(!c.extends){
+					return false;
+				}
+				if(c.extends == p.__name__){
+					return true;
+				}
+				if(!p.extends){
+					return false;
+				}
+				return recParentTest(p, JOMM.get(p.extends));
+			}
+			return recParentTest(objectA, objectB);
+
+		} 
+		return false;
+	}
+
+	/**
+	 * Test two string instance between us and see if one implement
+	 * the other.
+	 *
+	 * @param string obj
+	 * @param string interface
+	 */
+	self.implement = function(obj, interface)
+	{
+		var proto = JOMM.get(obj);
+		var inter = JOMM.get(interface);
+		if( !proto || proto.__name__ != obj ||
+			!inter || inter.__name__ != interface) {
+			console.error("JOMM Oups! Bad value for JOMM.Utilities.implement !");
+			return false;
+		}
+
+		if(proto.__type__ == "class" && inter.__type__ == "interface"){
+			for(i in proto.implements){
+				if(proto.implements[i] == inter.__name__){
+					return true;
+				}
+			}
+			if(proto.extends){
+				return self.implement(proto.extends, inter.__name__);
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Create a corect prototype for a class, interface or a module
+	 * too. Add some special methods to class.
+	 *
+	 * @param object prototype
+	 * @param string name
+	 * @param string type
+	 */
+	self.createPrototype = function(prototype, name, type)
+	{
+		prototype.__name__ = name;
+		prototype.__type__ = type;
+		// Add method to the class :
+		if(type == "class"){
+			prototype.instanceOf = function(o, object){
+				if(typeof object == "function" && arguments.length > 2) {
+					object = arguments[2];
+				}
+				if(typeof object == "object" && object.__name__){
+					var name = object = object.__name__;
+				} else {
+					var name = object;
+				}
+
+				return JOMM.Utilities.instanceOf(o.__name__, name);
+			},
+			prototype.implement = function(o, object){
+				if(typeof object == "function" && arguments.length > 2) {
+					object = arguments[2];
+				}
+				if(typeof object == "object" && object.__name__){
+					var name = object = object.__name__;
+				} else {
+					var name = object;
+				}
+
+				return JOMM.Utilities.implement(o.__name__, name);
+			}
+		}
+
+		return prototype;
+	}
+
+
+	return self;
+
+})();
+
+// Export for NODE :
+if(typeof module !== "undefined"){	
+	if(module != undefined && module.exports != undefined){
+		module.exports = JOMM;
+	}	
+}
