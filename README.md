@@ -1,6 +1,8 @@
 jomm (Javascript Object and Module Manager)
 ===========================================
 
+[![Build Status](https://travis-ci.org/davidjegat/JOMM.png)](https://travis-ci.org/davidjegat/JOMM)
+
 ## What ? jomm !?
 
 jomm is the acronym for Javascript Object and Module Manager. So, what does it mean ? It's a simple
