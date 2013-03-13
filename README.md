@@ -14,8 +14,6 @@ JOMM has a very clean syntax to create javascript module or classes. This is
 a sample code that display an alert of a given object toString :
 
 ```javascript
-window.onload = function(){
-
 // create a Foo class :
 JOMM.class("Foo", {
 	
@@ -30,7 +28,7 @@ JOMM.class("Foo", {
 	// Simple toString, return some hello stuff
 	toString: function(self)
 	{
-		return "Hello i'm "+self.bar;
+		return "Hello i'm "+self.bar; 
 	}
 
 });
@@ -48,18 +46,24 @@ JOMM.module("BarModule", function(j){
 		sayHello: function()
 		{
 			alert(FooInstance.toString());
+		},
+		init: function(options)
+		{
+			this.sayHello();
 		}
 	};
 
 }, JOMM);
 
 // Now launch your module :
-JOMM.launch("BarModule", "sayHello");
-
-}
+JOMM.init("BarModule");
 ```
 
 ## How install it ?
+
+JOMM is available for web browser and / or nodejs.
+
+## client side
 
 JOMM installation are easy. Just include the JOMM.min.js file into a corect script tag at the
 end of your HTML.
@@ -67,6 +71,10 @@ end of your HTML.
 ```html
 <script type="text/html" src="path/to/JOMM.min.js"></script>
 ```
+
+## node js and npm
+
+you can install JOMM for nodejs with the following npm package (TODO : create a node package)
 
 ## Works with class
 
@@ -76,6 +84,15 @@ Classes are defined like that
 JOMM.class("MyClass", {
 	// some attributes and methods here ...
 });
+```
+
+### Create an instance
+
+JOMM is a **manager**. It means that all classes or modules are store into JOMM it self !
+This is how instanciate a given class :
+
+```javascript
+var foo = JOMM.new("MyClass", "parameter 1", "parameter 2");
 ```
 
 ### The `self` object (Python stuff ? no !?)
@@ -225,3 +242,133 @@ You can have as many implementation of you want !
 *	`"object"`
 *	`"undefined"`
 *	`"*"`
+
+## Works with module
+
+A module is a special pattern that deal with javascript. It's essential to 
+use this pattern in your application. This is the structure of a module :
+
+```javascript
+// Basic module
+JOMM.module("MyModule", function($, _) // A module can take other modules
+{
+	// Private stuff here :
+	var some = "foo";
+
+
+	return {	// It must return a JSON (public stuff)
+		init: function(options)	// Init received a json with all the module options
+		{
+			// do some stuff
+		}
+	};
+}, jQuery, underscore);
+
+// Module with more clear syntax
+JOMM.module("GoodSyntax", function()
+{
+	var self = {};
+
+	var privateAtribute = "foo";
+
+	var privateMethod = function()
+	{
+		// private stuff
+	}
+
+	self.publicAttribute = "bar";
+
+	self.publicMethod = function()
+	{
+		// call a private attribute or method :
+		privateAttribute;
+		privateMethod(); // Don't use the self keyword for private
+	}
+
+	// finaly return the public json self
+	return self;
+});
+```
+
+Module are a standard way to defined javascript component. A JOMM module is a simple function
+that can take any arguments of your choice and must return a Json for defined it's object structure.
+Globaly, a module represent the perfect implementation for **facade** or **command** pattern. It
+simplify a more complex structure with some command.
+
+### Initialize and configure your modules
+
+A JOMM module can be initialize just once ! It's a sort of **singleton** that represent a started point
+of a given application task. Let's see how initialize a module :
+
+```javascript
+JOMM.init("MyModule", { // here the module option
+	foo: true,
+	bar: true,
+	...
+})
+```
+
+this short code launch the `init` method with the given options but not return it !
+
+### How to get an initialize module ?
+
+It's very simple, if you have initialize `"MyModule"` then can get it like that :
+
+```javascript
+var myModule = JOMM.getModule("MyModule"); // No argument is need
+```
+
+If `"MyModule"` isn't initialize, then the command `getModule` will return `null` and will send 
+a console warning.
+
+### Deal with your application
+
+So, you have seen the classes, interfaces and modules components of JOMM. Now, this
+command it's more simple and i think : powerfull.
+
+```javascript
+// Let's see how run an application
+JOMM.run({
+	"FirstModule": {
+		// some options,
+	},
+	"SecondModule": {
+		// some options,
+	},
+	...
+});
+```
+
+With JOMM, application become a simple JSON that deal with module.
+
+## Packages
+
+The last think i've to show you it's package.
+
+```javascript
+JOMM.class("Package.MyClass", {
+	// some code ...
+})
+```
+
+So, it's really simple. But packages can get a started point (called it a **facade** or a **command** depending
+of the packages complexity). This is an exemple :
+
+```javascript
+JOMM.module("Package.Package", function(){
+	// some module code ...
+});
+
+// and now you can abstract the package complexity with this
+// simple module. First, initialize it with "run" or "init" :
+JOMM.init("Package", { // you don't need to precise Package(.Package), it's logic for JOMM ;) 
+	// some options
+});
+
+// Get the module and deal with it for iteract with the entire package
+var theFacade = JOMM.getModule("Package"); // once more, don't precise Package(.Package) ;) !
+```
+
+## Conclusion
+
+Thanks to read this short manual and i hope that JOMM will be useful for you.
