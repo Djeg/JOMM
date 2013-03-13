@@ -1,5 +1,5 @@
 var assert = require("assert");
-var JOMM = require('../JOMM');
+var JOMM = require('../jomm');
 
 describe("JOMM.class", function(){
 

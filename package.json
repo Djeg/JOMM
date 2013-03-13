@@ -1,13 +1,13 @@
 {
   "author": "David Jegat <david.jegat@gmail.com>",
-  "name": "JOMM",
-  "description": "JOMM (Javascript Object and Module Manager) is a simple objects and modules container and manager.",
-  "version": "0.0.1",
+  "name": "jomm",
+  "description": "jomm (Javascript Object and Module Manager) is a simple objects and modules container and manager.",
+  "version": "1.0.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/davidjegat/JOMM.git"
+    "url": "git://github.com/davidjegat/jomm.git"
   },
-  "main": "JOMM.js",
+  "main": "jomm.js",
   "scripts": {
     "test": "mocha test/*.js --ignore-leaks"
   },
